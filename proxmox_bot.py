@@ -79,10 +79,8 @@ def command_start(message) -> NoReturn:
 def command_help(message) -> NoReturn:
     bot.send_message(message.chat.id, "Aqui pondre todas las opciones")
     markup = types.InlineKeyboardMarkup()
-    itembtna = types.InlineKeyboardButton('Github', url="https://github.com/procamora/Gestor-Series")
-    itembtnv = types.InlineKeyboardButton('Documentacion',
-                                          url="https://github.com/procamora/Gestor-Series/blob/master/README.md")
-    markup.row(itembtna, itembtnv)
+    itembtna = types.InlineKeyboardButton('Github', url="https://github.com/procamora/bot_proxmox")
+    markup.row(itembtna)
     bot.send_message(message.chat.id, "Aqui pondre todas las opciones", reply_markup=markup)
     return  # solo esta puesto para que no falle la inspeccion de codigo
 
