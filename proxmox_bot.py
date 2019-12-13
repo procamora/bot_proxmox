@@ -18,26 +18,38 @@ start - Start the bot
 import configparser
 import re
 import subprocess
-from typing import NoReturn, Optional, Tuple
+import sys
+from pathlib import Path
+from typing import NoReturn, Optional, Tuple, Dict, List
 
 from telebot import TeleBot, types  # Importamos la librería Y los tipos especiales de esta
 
 from Pentesting import client_ssh
+from logger import logger
 
 FILE_CONFIG = 'settings.ini'
-config = configparser.ConfigParser()
+config: configparser.ConfigParser = configparser.ConfigParser()
 config.read(FILE_CONFIG)
 
-config_basic = config["BASICS"]
-config_ssh = config["SSH"]
+config_basic: configparser.SectionProxy = config["BASICS"]
+config_ssh: configparser.SectionProxy = config["SSH"]
+administrador: int = 33063767
+users_permitted: List = [33063767, 40522670]
 
-administrador = 33063767
-users_permitted = [33063767, 40522670]
+cert_str: str = config_ssh.get('CERT')
+if cert_str is not None:
+    cert = Path(cert_str)
+else:
+    cert = None
 
-bot = TeleBot(config_basic.get('BOT_TOKEN'))
+if not cert.exists():
+    logger.critical(f'certificate {cert_str} not exists')
+    sys.exit(1)
+
+bot: TeleBot = TeleBot(config_basic.get('BOT_TOKEN'))
 bot.send_message(administrador, "El bot se ha iniciado")
 
-dicc_botones = {
+dicc_botones: Dict = {
     'wakeonlan': '/wakeonlan',
     'reboot': '/reboot',
     'poweroff': '/poweroff',
@@ -138,13 +150,13 @@ def send_wakeonlan(message) -> NoReturn:
 @bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['reboot'])
 def send_reboot(message) -> NoReturn:
     cmd: str = 'reboot'
-    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(config_ssh.get('IP'), config_ssh.get('USER'),
-                                                     config_ssh.get('PASSWORD'), cmd, port=config_ssh.get('PORT'))
+    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(ip=config_ssh.get('IP'), port=config_ssh.get('PORT'), debug=False)
     if not ssh.is_online():
         bot.reply_to(message, f'Client: {config_ssh.get("IP")} is down!')
         return
 
-    output, error = ssh.execute_command()
+    output, error = ssh.execute_command(user=config_ssh.get('USER'), password=config_ssh.get('PASSWORD'), cert=cert,
+                                        command=cmd)
     if error != 0:
         bot.reply_to(message, f'Error: {output}')
     else:
@@ -155,13 +167,14 @@ def send_reboot(message) -> NoReturn:
 @bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['poweroff'])
 def send_poweroff(message) -> NoReturn:
     cmd: str = 'poweroff'
-    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(config_ssh.get('IP'), config_ssh.get('USER'),
-                                                     config_ssh.get('PASSWORD'), cmd, port=config_ssh.get('PORT'))
+    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(ip=config_ssh.get('IP'), port=config_ssh.get('PORT'), debug=False)
+
     if not ssh.is_online():
         bot.reply_to(message, f'Client: {config_ssh.get("IP")} is down!')
         return
 
-    output, error = ssh.execute_command()
+    output, error = ssh.execute_command(user=config_ssh.get('USER'), password=config_ssh.get('PASSWORD'), cert=cert,
+                                        command=cmd)
     if error != 0:
         bot.reply_to(message, f'Error: {output}')
     else:
@@ -172,13 +185,14 @@ def send_poweroff(message) -> NoReturn:
 @bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['halt'])
 def send_halt(message) -> NoReturn:
     cmd: str = 'halt'
-    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(config_ssh.get('IP'), config_ssh.get('USER'),
-                                                     config_ssh.get('PASSWORD'), cmd, port=config_ssh.get('PORT'))
+    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(ip=config_ssh.get('IP'), port=config_ssh.get('PORT'), debug=False)
+
     if not ssh.is_online():
         bot.reply_to(message, f'Client: {config_ssh.get("IP")} is down!')
         return
 
-    output, error = ssh.execute_command()
+    output, error = ssh.execute_command(user=config_ssh.get('USER'), password=config_ssh.get('PASSWORD'), cert=cert,
+                                        command=cmd)
     if error != 0:
         bot.reply_to(message, f'Error: {output}')
     else:
