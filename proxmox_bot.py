@@ -236,7 +236,7 @@ def my_document(message) -> NoReturn:
 def handle_resto(message) -> NoReturn:
     texto = 'No tienes permiso para ejecutar esta accion, eso se debe a que no eres yo.\n' \
             'Por lo que ya sabes, desaparece -.-'
-    bot.reply_to(message.chat.id, texto)
+    bot.reply_to(message, texto)
     return  # solo esta puesto para que no falle la inspeccion de codigo
 
 
