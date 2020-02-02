@@ -9,7 +9,7 @@
 wakeonlan - Start the server
 reboot - Restart the server
 poweroff - Turn off the server
-halt - Turn off the server
+shutdown - Turn off the server
 exit - Exit
 help - Show help
 start - Start the bot
@@ -18,30 +18,47 @@ start - Start the bot
 import configparser
 import re
 import subprocess
-from typing import NoReturn, Optional, Tuple
+import sys
+from pathlib import Path
+from typing import NoReturn, Optional, Tuple, Dict, List
 
 from telebot import TeleBot, types  # Importamos la librería Y los tipos especiales de esta
 
 from Pentesting import client_ssh
+from logger import logger
 
-FILE_CONFIG = 'settings.ini'
-config = configparser.ConfigParser()
+FILE_CONFIG: Path = Path('settings.ini')
+if not FILE_CONFIG.exists():
+    logger.critical(f'File {FILE_CONFIG} not exists and is necesary')
+    sys.exit(1)
+
+config: configparser.ConfigParser = configparser.ConfigParser()
 config.read(FILE_CONFIG)
 
-config_basic = config["BASICS"]
-config_ssh = config["SSH"]
+config_basic: configparser.SectionProxy = config["BASICS"]
+config_ssh: configparser.SectionProxy = config["SSH"]
+administrador: int = 33063767
+users_permitted: List = [33063767, 40522670]
 
-administrador = 33063767
-users_permitted = [33063767, 40522670]
+cert_str: str = config_ssh.get('CERT')
+if cert_str is not None:
+    cert = Path(cert_str)
+else:
+    cert = None
 
-bot = TeleBot(config_basic.get('BOT_TOKEN'))
+if not cert.exists():
+    logger.critical(f'certificate {cert_str} not exists')
+    sys.exit(1)
+
+bot: TeleBot = TeleBot(config_basic.get('BOT_TOKEN'))
 bot.send_message(administrador, "El bot se ha iniciado")
+logger.info('Starting bot')
 
-dicc_botones = {
+dicc_botones: Dict = {
     'wakeonlan': '/wakeonlan',
     'reboot': '/reboot',
     'poweroff': '/poweroff',
-    'halt': '/halt',
+    'shutdown': '/shutdown',
     'exit': '/exit',
 }
 
@@ -67,6 +84,14 @@ def execute_command(command: str) -> Tuple[str, str, subprocess.Popen]:
     return format_text(stdout), format_text(stderr), execute
 
 
+def get_keyboard() -> types.ReplyKeyboardMarkup:
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+    markup.row(dicc_botones['wakeonlan'], dicc_botones['reboot'])
+    markup.row(dicc_botones['poweroff'], dicc_botones['shutdown'])
+    markup.row(dicc_botones['exit'])
+    return markup
+
+
 # Handle always first "/start" message when new chat with your bot is created
 @bot.message_handler(commands=["start"])
 def command_start(message) -> NoReturn:
@@ -85,34 +110,11 @@ def command_help(message) -> NoReturn:
     return  # solo esta puesto para que no falle la inspeccion de codigo
 
 
-@bot.message_handler(func=lambda message: message.chat.id == administrador, content_types=["text"])
-def my_text(message) -> NoReturn:
-    if message.text in dicc_botones.values():
-        if message.text == dicc_botones['wakeonlan']:
-            send_wakeonlan(message)
-        elif message.text == dicc_botones['reboot']:
-            send_reboot(message)
-        elif message.text == dicc_botones['poweroff']:
-            send_poweroff(message)
-        elif message.text == dicc_botones['halt']:
-            send_halt(message)
-        elif message.text == dicc_botones['exit']:
-            send_exit(message)
-    else:
-        bot.send_message(message.chat.id, "Comando desconocido")
-    return  # solo esta puesto para que no falle la inspeccion de codigo
-
-
 @bot.message_handler(commands=["system"])
 def command_system(message) -> NoReturn:
     bot.send_message(message.chat.id, "Lista de comandos disponibles")
 
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-    markup.row(dicc_botones['wakeonlan'], dicc_botones['reboot'])
-    markup.row(dicc_botones['poweroff'], dicc_botones['halt'])
-    markup.row(dicc_botones['exit'])
-
-    bot.send_message(message.chat.id, "Escoge una opcion: ", reply_markup=markup)
+    bot.send_message(message.chat.id, "Escoge una opcion: ", reply_markup=get_keyboard())
     return  # solo esta puesto para que no falle la inspeccion de codigo
 
 
@@ -121,7 +123,7 @@ def send_exit(message) -> NoReturn:
     pass
 
 
-@bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['wakeonlan'])
+@bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['/wakeonlan'])
 def send_wakeonlan(message) -> NoReturn:
     command = f'wakeonlan {config_basic.get("MAC_PROXMOX")}'
     stdout, stderr, execute = execute_command(command)
@@ -130,59 +132,61 @@ def send_wakeonlan(message) -> NoReturn:
         bot.reply_to(message, f'Error: {stderr}')
         return
     elif len(stdout) == 0:
-        bot.reply_to(message, 'Ejecutado, no hace nada')
+        bot.reply_to(message, 'Ejecutado, no hace nada', reply_markup=get_keyboard())
     else:
-        bot.reply_to(message, stdout)
+        bot.reply_to(message, stdout, reply_markup=get_keyboard())
 
 
 @bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['reboot'])
 def send_reboot(message) -> NoReturn:
     cmd: str = 'reboot'
-    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(config_ssh.get('IP'), config_ssh.get('USER'),
-                                                     config_ssh.get('PASSWORD'), cmd, port=config_ssh.get('PORT'))
+    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(ip=config_ssh.get('IP'), port=config_ssh.get('PORT'), debug=False)
     if not ssh.is_online():
         bot.reply_to(message, f'Client: {config_ssh.get("IP")} is down!')
         return
 
-    output, error = ssh.execute_command()
+    output, error = ssh.execute_command(user=config_ssh.get('USER'), password=config_ssh.get('PASSWORD'), cert=cert,
+                                        command=cmd)
     if error != 0:
-        bot.reply_to(message, f'Error: {output}')
+        bot.reply_to(message, f'Error: {output}', reply_markup=get_keyboard())
     else:
-        bot.reply_to(message, f'OK: {output}')
+        bot.reply_to(message, f'rebooting in process', reply_markup=get_keyboard())
     return
 
 
 @bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['poweroff'])
 def send_poweroff(message) -> NoReturn:
     cmd: str = 'poweroff'
-    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(config_ssh.get('IP'), config_ssh.get('USER'),
-                                                     config_ssh.get('PASSWORD'), cmd, port=config_ssh.get('PORT'))
+    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(ip=config_ssh.get('IP'), port=config_ssh.get('PORT'), debug=False)
+
     if not ssh.is_online():
         bot.reply_to(message, f'Client: {config_ssh.get("IP")} is down!')
         return
 
-    output, error = ssh.execute_command()
+    output, error = ssh.execute_command(user=config_ssh.get('USER'), password=config_ssh.get('PASSWORD'), cert=cert,
+                                        command=cmd)
     if error != 0:
-        bot.reply_to(message, f'Error: {output}')
+        bot.reply_to(message, f'Error: {output}', reply_markup=get_keyboard())
     else:
-        bot.reply_to(message, f'OK: {output}')
+        bot.reply_to(message, f'OK: {output}', reply_markup=get_keyboard())
     return
 
 
-@bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['halt'])
-def send_halt(message) -> NoReturn:
-    cmd: str = 'halt'
-    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(config_ssh.get('IP'), config_ssh.get('USER'),
-                                                     config_ssh.get('PASSWORD'), cmd, port=config_ssh.get('PORT'))
+@bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['shutdown'])
+def send_shutdown(message) -> NoReturn:
+    cmd: str = 'shutdown -h now'
+    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(ip=config_ssh.get('IP'), port=config_ssh.get('PORT'), debug=False)
+
     if not ssh.is_online():
         bot.reply_to(message, f'Client: {config_ssh.get("IP")} is down!')
         return
 
-    output, error = ssh.execute_command()
+    output, error = ssh.execute_command(user=config_ssh.get('USER'), password=config_ssh.get('PASSWORD'), cert=cert,
+                                        command=cmd)
     if error != 0:
-        bot.reply_to(message, f'Error: {output}')
+        bot.reply_to(message, f'Error: {output}', reply_markup=get_keyboard())
     else:
-        bot.reply_to(message, f'OK: {output}')
+        bot.reply_to(message, f'OK: {output}', reply_markup=get_keyboard())
     return
 
 
@@ -195,14 +199,14 @@ def handle_cmd(message) -> NoReturn:
         stdout, stderr, execute = execute_command(command)
 
         if check_error(execute, stderr):
-            bot.reply_to(message, f'Error: {stderr}')
+            bot.reply_to(message, f'Error: {stderr}', reply_markup=get_keyboard())
             return
         elif len(stdout) == 0:
-            bot.reply_to(message, f'Ejecutado: {command}')
+            bot.reply_to(message, f'Ejecutado: {command}', reply_markup=get_keyboard())
         else:
-            bot.reply_to(message, stdout)
+            bot.reply_to(message, stdout, reply_markup=get_keyboard())
     else:
-        bot.reply_to(message, 'Comando aun no implementado')
+        bot.reply_to(message, 'Comando aun no implementado', reply_markup=get_keyboard())
 
 
 @bot.message_handler(func=lambda message: message.chat.id == administrador, content_types=["photo"])
@@ -229,6 +233,15 @@ def my_document(message) -> NoReturn:
     #    bot.send_voice(message.chat.id, message.voice.file_id, duration=message.voice.duration)
     # else:
     bot.reply_to(message, f'Aun no he implementado este tipo de ficheros: "{message.document.mime_type}"')
+    return  # solo esta puesto para que no falle la inspeccion de codigo
+
+
+@bot.message_handler(func=lambda message: message.chat.id == administrador, content_types=["text"])
+def my_text(message) -> NoReturn:
+    if message.text in dicc_botones.values():
+        pass
+    else:
+        bot.send_message(message.chat.id, "Comando desconocido", reply_markup=get_keyboard())
     return  # solo esta puesto para que no falle la inspeccion de codigo
 
 
