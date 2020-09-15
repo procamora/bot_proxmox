@@ -23,9 +23,10 @@ from pathlib import Path
 from typing import NoReturn, Optional, Tuple, Dict, List
 
 from telebot import TeleBot, types  # Importamos la librería Y los tipos especiales de esta
+from procamora_utils.logger import get_logging, logging
+from procamora_utils.client_ssh import ClientSSH
 
-from Pentesting import client_ssh
-from logger import logger
+logger: logging = get_logging(False, 'bot_proxmox')
 
 FILE_CONFIG: Path = Path('settings.cfg')
 if not FILE_CONFIG.exists():
@@ -140,7 +141,7 @@ def send_wakeonlan(message) -> NoReturn:
 @bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['reboot'])
 def send_reboot(message) -> NoReturn:
     cmd: str = 'reboot'
-    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(ip=config_ssh.get('IP'), port=config_ssh.get('PORT'), debug=False)
+    ssh: ClientSSH = ClientSSH(ip=config_ssh.get('IP'), port=int(config_ssh.get('PORT')), debug=False)
     if not ssh.is_online():
         bot.reply_to(message, f'Client: {config_ssh.get("IP")} is down!')
         return
@@ -157,7 +158,7 @@ def send_reboot(message) -> NoReturn:
 @bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['poweroff'])
 def send_poweroff(message) -> NoReturn:
     cmd: str = 'poweroff'
-    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(ip=config_ssh.get('IP'), port=config_ssh.get('PORT'), debug=False)
+    ssh: ClientSSH = ClientSSH(ip=config_ssh.get('IP'), port=int(config_ssh.get('PORT')), debug=False)
 
     if not ssh.is_online():
         bot.reply_to(message, f'Client: {config_ssh.get("IP")} is down!')
@@ -175,7 +176,7 @@ def send_poweroff(message) -> NoReturn:
 @bot.message_handler(func=lambda message: message.chat.id == administrador, commands=['shutdown'])
 def send_shutdown(message) -> NoReturn:
     cmd: str = 'shutdown -h now'
-    ssh: client_ssh.ClientSSH = client_ssh.ClientSSH(ip=config_ssh.get('IP'), port=config_ssh.get('PORT'), debug=False)
+    ssh: ClientSSH = ClientSSH(ip=config_ssh.get('IP'), port=int(config_ssh.get('PORT')), debug=False)
 
     if not ssh.is_online():
         bot.reply_to(message, f'Client: {config_ssh.get("IP")} is down!')

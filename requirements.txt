@@ -1,1 +1,2 @@
 pyTelegramBotAPI
+procamora_utils>=1.7
