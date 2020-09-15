@@ -27,7 +27,7 @@ from telebot import TeleBot, types  # Importamos la librería Y los tipos especi
 from Pentesting import client_ssh
 from logger import logger
 
-FILE_CONFIG: Path = Path('settings.ini')
+FILE_CONFIG: Path = Path('settings.cfg')
 if not FILE_CONFIG.exists():
     logger.critical(f'File {FILE_CONFIG} not exists and is necesary')
     sys.exit(1)

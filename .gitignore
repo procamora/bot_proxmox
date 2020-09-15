@@ -1,6 +1,6 @@
 
 .idea/*
-settings.ini
+settings.cfg
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
