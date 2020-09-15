@@ -28,7 +28,8 @@ from procamora_utils.client_ssh import ClientSSH
 
 logger: logging = get_logging(False, 'bot_proxmox')
 
-FILE_CONFIG: Path = Path('settings.cfg')
+FILE_CONFIG: Path = Path(Path(__file__).resolve().parent, "settings.cfg")
+
 if not FILE_CONFIG.exists():
     logger.critical(f'File {FILE_CONFIG} not exists and is necesary')
     sys.exit(1)

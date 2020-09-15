@@ -1,13 +1,12 @@
-# bot_proxmox
+# bot\_proxmox
 This is a bot to turn on and off a computer with Proxmox using wake on lan and ssh
 
 
 
-
- sudo apt install wakeonlan
- pip3 install - r requirements.txt --user
- pip3 install - r Pentesting/requirements.txt --user
- 
+```bash
+sudo apt install wakeonlan
+pip3 install - r requirements.txt --user
+```
  
 
 ```
